@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: oracle-server
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    branch: main
+    autoDeploy: trueservices:
+  - type: web
+    name: oracle-server
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    branch: main
+    autoDeploy: true
