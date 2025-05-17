@@ -2,9 +2,9 @@ services:
   - type: web
     name: oracle-moodle-tools
     env: node
+    plan: free
     buildCommand: npm install
     startCommand: node index.js
-    plan: free
     branch: main
+    rootDir: .
     autoDeploy: true
-  
