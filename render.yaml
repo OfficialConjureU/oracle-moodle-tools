@@ -1,12 +1,12 @@
 services:
   - type: web
-    name: oracle-server
+    name: oracle-moodle-tools
     env: node
     buildCommand: npm install
     startCommand: node index.js
     plan: free
     branch: main
-    autoDeploy: trueservices:
+    autoDeploy: true
   - type: web
     name: oracle-server
     env: node
