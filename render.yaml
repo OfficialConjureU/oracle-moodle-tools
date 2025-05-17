@@ -7,4 +7,3 @@ services:
     startCommand: node index.js
     branch: main
     rootDir: .
-    autoDeploy: true
