@@ -1,3 +1,8 @@
+// ==========================
+// FINAL UNIVERSAL ORACLE MOODLE RELAY
+// Supports ALL functions, ALL formats
+// ==========================
+
 const express = require('express');
 const axios = require('axios');
 const qs = require('qs');
@@ -11,7 +16,6 @@ const MOODLE_URL = 'https://conjureuniversity.online/moodle/webservice/rest/serv
 const MOODLE_TOKEN = '519f754c7dc83533788a2dd5872fe991';
 const DOCS_URL = `https://conjureuniversity.online/moodle/admin/webservice/documentation.php?wstoken=${MOODLE_TOKEN}`;
 
-// Auto-update function map
 let functionMap = {};
 
 async function updateFunctionMap() {
@@ -34,36 +38,31 @@ async function updateFunctionMap() {
     });
     functionMap = map;
     fs.writeFileSync('./Moodle_Universal_Functions_Map.json', JSON.stringify(map, null, 2));
-    console.log('✅ [AutoSync] Moodle function map refreshed @', new Date().toLocaleString());
+    console.log('✅ Moodle function map updated');
   } catch (err) {
-    console.error('❌ [AutoSync] Failed to refresh function map:', err.message);
-    functionMap = JSON.parse(fs.readFileSync('./Moodle_Universal_Functions_Map.json', 'utf8'));
+    console.error('❌ Failed to update map:', err.message);
+    try {
+      functionMap = JSON.parse(fs.readFileSync('./Moodle_Universal_Functions_Map.json', 'utf8'));
+    } catch (e) {
+      console.error('❌ No fallback schema found');
+    }
   }
 }
 
-// Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Universal Oracle Command Handler
+// Universal Oracle Relay Handler
 app.post('/oracle_command', async (req, res) => {
   try {
-    const { command, ...rawParams } = req.body;
-
-    if (!command) {
-      return res.status(400).json({ error: 'Missing "command" field.' });
-    }
-
-    const expectedFormat = functionMap[command];
-    if (!expectedFormat) {
-      return res.status(400).json({ error: `Unknown Moodle function: ${command}` });
-    }
+    const { command, ...rest } = req.body;
+    if (!command) return res.status(400).json({ error: 'Missing "command" field.' });
 
     const payload = {
       wstoken: MOODLE_TOKEN,
       wsfunction: command,
       moodlewsrestformat: 'json',
-      ...rawParams
+      ...rest
     };
 
     const response = await axios.post(
@@ -77,9 +76,8 @@ app.post('/oracle_command', async (req, res) => {
       command,
       moodleResponse: response.data
     });
-
   } catch (error) {
-    console.error('Oracle Server Error:', error.response?.data || error.message);
+    console.error('❌ Relay Error:', error.response?.data || error.message);
     res.status(500).json({
       status: 'error',
       error: error.response?.data || error.message
@@ -87,12 +85,8 @@ app.post('/oracle_command', async (req, res) => {
   }
 });
 
-// Launch server + sync on boot + refresh daily
 updateFunctionMap().then(() => {
   app.listen(PORT, () => {
-    console.log(`✅ Oracle Moodle Relay running on port ${PORT}`);
+    console.log(`✅ Oracle Universal Moodle Relay running on port ${PORT}`);
   });
-
-  // Auto-refresh schema every 24 hours
-  setInterval(updateFunctionMap, 24 * 60 * 60 * 1000);
 });
