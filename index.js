@@ -73,6 +73,8 @@ app.post('/oracle_command', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
 
+    console.log('✅ RAW Moodle Response:', JSON.stringify(moodleResponse.data, null, 2));
+
     res.json({
       ok: true,
       endpoint: MOODLE_URL,
@@ -80,7 +82,7 @@ app.post('/oracle_command', async (req, res) => {
       response: moodleResponse.data
     });
   } catch (err) {
-    console.error('❌ Moodle relay error:', err.message);
+    console.error('❌ Moodle relay error:', err.response?.data || err.message);
     res.status(500).json({
       ok: false,
       message: 'Oracle relay error',
