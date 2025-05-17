@@ -1,98 +1,65 @@
-// ==========================
-// UNIVERSAL ORACLE MOODLE RELAY - FINAL VERSION
-// Supports ALL Moodle API functions and enforces full payload passthrough
-// ==========================
-
 const express = require('express');
 const axios = require('axios');
 const qs = require('qs');
 const fs = require('fs');
-const cheerio = require('cheerio');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Moodle Config
+// Moodle API config
 const MOODLE_URL = 'https://conjureuniversity.online/moodle/webservice/rest/server.php';
 const MOODLE_TOKEN = '519f754c7dc83533788a2dd5872fe991';
-const DOCS_URL = `https://conjureuniversity.online/moodle/admin/webservice/documentation.php?wstoken=${MOODLE_TOKEN}`;
+const MOODLE_FORMAT = 'json';
 
+// Load the universal function map
 let functionMap = {};
-
-// Auto-map all valid Moodle WS functions and parameters
-async function updateFunctionMap() {
-  try {
-    const response = await axios.get(DOCS_URL);
-    const $ = cheerio.load(response.data);
-    const map = {};
-    $('h3').each((_, el) => {
-      const functionName = $(el).text().replace('Function name: ', '').trim();
-      const ul = $(el).nextAll('ul').first();
-      if (ul.length) {
-        const params = [];
-        ul.find('li').each((_, li) => {
-          const text = $(li).text();
-          const param = text.split('=')[0].trim();
-          if (param) params.push(param);
-        });
-        map[functionName] = params;
-      }
-    });
-    functionMap = map;
-    fs.writeFileSync('./Moodle_Universal_Functions_Map.json', JSON.stringify(map, null, 2));
-    console.log('✅ Moodle function map updated and saved');
-  } catch (err) {
-    console.error('❌ Failed to scrape Moodle docs:', err.message);
-    try {
-      functionMap = JSON.parse(fs.readFileSync('./Moodle_Universal_Functions_Map.json', 'utf8'));
-      console.log('✅ Loaded fallback Moodle function map');
-    } catch (e) {
-      console.error('❌ No fallback map found');
-    }
-  }
+try {
+  functionMap = JSON.parse(fs.readFileSync('./Moodle_Universal_Functions_Map.json', 'utf8'));
+} catch (err) {
+  console.error('Failed to load Moodle_Universal_Functions_Map.json:', err);
 }
 
-app.use(express.json({ limit: '10mb' }));
+// Parse POST body
 app.use(express.urlencoded({ extended: true }));
 
-// Core Oracle Relay
 app.post('/oracle_command', async (req, res) => {
   try {
-    const { command, ...params } = req.body;
-    if (!command) return res.status(400).json({ error: 'Missing required field: "command"' });
+    const { command, parameters } = req.body;
 
-    const fullPayload = {
-      wstoken: MOODLE_TOKEN,
-      wsfunction: command,
-      moodlewsrestformat: 'json',
-      ...params
-    };
+    if (!command || !parameters) {
+      return res.status(400).json({ error: 'Missing command or parameters' });
+    }
 
-    const moodleResponse = await axios.post(
-      MOODLE_URL,
-      qs.stringify(fullPayload, { encode: true }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
+    const functionName = command.trim();
+    const payload = typeof parameters === 'string' ? JSON.parse(parameters) : parameters;
 
-    console.log('✅ RAW Moodle Response:', JSON.stringify(moodleResponse.data, null, 2));
+    // Validate if command exists in function map (optional)
+    if (!functionMap[functionName]) {
+      console.warn(`⚠️ Warning: Function '${functionName}' not found in map. Proceeding anyway.`);
+    }
 
-    res.json({
-      ok: true,
-      endpoint: MOODLE_URL,
-      invoked: command,
-      response: moodleResponse.data
+    const moodleEndpoint = `${MOODLE_URL}?wstoken=${MOODLE_TOKEN}&wsfunction=${functionName}&moodlewsrestformat=${MOODLE_FORMAT}`;
+
+    const response = await axios.post(moodleEndpoint, qs.stringify(payload), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
     });
-  } catch (err) {
-    console.error('❌ Moodle relay error:', err.response?.data || err.message);
-    res.status(500).json({
-      ok: false,
-      message: 'Oracle relay error',
-      error: err.response?.data || err.message
+
+    return res.status(200).json({
+      success: true,
+      function: functionName,
+      moodle_response: response.data
+    });
+
+  } catch (error) {
+    console.error('Oracle Command Failed:', error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message
     });
   }
 });
 
-updateFunctionMap().then(() => {
-  app.listen(PORT, () => {
-    console.log(`✅ Oracle Moodle Relay listening at http://localhost:${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`Oracle Server is running on port ${PORT}`);
 });
